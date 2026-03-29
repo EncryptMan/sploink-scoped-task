@@ -1,0 +1,16 @@
+{
+  "name": "sploink-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/frontend"
+  ],
+  "scripts": {
+    "frontend:install": "npm --workspace apps/frontend install",
+    "frontend:dev": "npm --workspace apps/frontend run dev",
+    "frontend:build": "npm --workspace apps/frontend run build",
+    "frontend:test": "npm --workspace apps/frontend run test",
+    "backend:install": "python3 -m pip install -r apps/backend/requirements.txt",
+    "backend:dev": "uvicorn apps.backend.app.main:app --reload --app-dir .",
+    "backend:test": "pytest apps/backend/tests -q"
+  }
+}
