@@ -1,8 +1,8 @@
-from typing import Optional
+from typing import Optional, Sequence
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from pydantic import ValidationError
-from sqlmodel import Session, desc, select
+from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session, col, desc, select
 
 from .db import create_db_and_tables, get_session
 from .models import AgentSession, SessionCrossing
@@ -10,13 +10,24 @@ from .schemas import ErrorResponse, SessionCreate, SessionOut, ThresholdCrossing
 
 app = FastAPI(title="Sploink Session API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.on_event("startup")
 def on_startup() -> None:
     create_db_and_tables()
 
 
-def _to_session_out(db_session: AgentSession, crossings: list[SessionCrossing]) -> SessionOut:
+def _to_session_out(db_session: AgentSession, crossings: Sequence[SessionCrossing]) -> SessionOut:
     return SessionOut(
         session_id=db_session.session_id,
         agent=db_session.agent,
@@ -86,7 +97,9 @@ def list_sessions(
     results: list[SessionOut] = []
     for s in sessions:
         crossings = session.exec(
-            select(SessionCrossing).where(SessionCrossing.session_id == s.session_id).order_by(SessionCrossing.timestamp)
+            select(SessionCrossing)
+            .where(SessionCrossing.session_id == s.session_id)
+            .order_by(col(SessionCrossing.timestamp))
         ).all()
         results.append(_to_session_out(s, crossings))
     return results
@@ -99,6 +112,8 @@ def get_session_by_id(session_id: str, session: Session = Depends(get_session)) 
         raise HTTPException(status_code=404, detail="session not found")
 
     crossings = session.exec(
-        select(SessionCrossing).where(SessionCrossing.session_id == session_id).order_by(SessionCrossing.timestamp)
+        select(SessionCrossing)
+        .where(SessionCrossing.session_id == session_id)
+        .order_by(col(SessionCrossing.timestamp))
     ).all()
     return _to_session_out(db_session, crossings)
