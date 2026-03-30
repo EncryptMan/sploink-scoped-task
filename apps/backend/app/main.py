@@ -2,6 +2,7 @@ from typing import Optional, Sequence
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, desc, select
 
 from .db import create_db_and_tables, get_session
@@ -74,7 +75,12 @@ def create_session(payload: SessionCreate, session: Session = Depends(get_sessio
     for crossing in db_crossings:
         session.add(crossing)
 
-    session.commit()
+    try:
+        session.commit()
+    except SQLAlchemyError as exc:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"database error: {exc.__class__.__name__}") from exc
+
     return _to_session_out(db_session, db_crossings)
 
 

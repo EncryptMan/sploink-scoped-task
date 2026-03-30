@@ -77,21 +77,57 @@ export default function App() {
       }));
   }, [sessions]);
 
+  const onTrendPointClick = (point) => {
+    const nextId = point?.session_id ?? point?.payload?.session_id;
+    if (nextId) {
+      setSelectedId(nextId);
+    }
+  };
+
   const seedData = async () => {
+    console.log("Seeding sample data...");
     setSeeding(true);
     setError("");
     try {
-      for (const item of sampleSessions()) {
+      const existingIds = new Set(sessions.map((s) => s.session_id));
+      const now = Date.now();
+      const pending = sampleSessions().map((item, idx) => {
+        if (!existingIds.has(item.session_id)) {
+          existingIds.add(item.session_id);
+          return item;
+        }
+
+        const nextId = `${item.session_id}-${now}-${idx}`;
+        existingIds.add(nextId);
+        return {
+          ...item,
+          session_id: nextId,
+        };
+      });
+      const failures = [];
+      for (const item of pending) {
         try {
           await postSession(item);
-        } catch {
-          // Ignore duplicates so the button can be clicked multiple times.
+        } catch (err) {
+          const message = String(err?.message || "");
+          const isDuplicate = message.toLowerCase().includes("already exists");
+          if (!isDuplicate) {
+            failures.push(`${item.session_id}: ${message || "unknown error"}`);
+          }
         }
       }
+      
+      if (failures.length > 0) {
+        console.error("Failed to seed some sessions:", failures);
+        throw new Error(`Failed to seed some sessions (${failures.length}). ${failures[0]}`);
+      }
+
       await loadSessions();
     } catch (err) {
+      console.error("Error seeding sample data:", err);
       setError(err.message || "Failed to seed sample data");
     } finally {
+      console.log("Seeding complete.");
       setSeeding(false);
     }
   };
@@ -130,6 +166,7 @@ export default function App() {
               <Scatter
                 data={chartData}
                 dataKey="drift_score"
+                onClick={onTrendPointClick}
                 shape={(props) => {
                   const cls = props.payload.severity;
                   return (
@@ -138,7 +175,6 @@ export default function App() {
                       cy={props.cy}
                       r={6}
                       className={`point ${cls}`}
-                      onClick={() => setSelectedId(props.payload.session_id)}
                     />
                   );
                 }}
